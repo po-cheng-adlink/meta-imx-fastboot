@@ -1,0 +1,159 @@
+From 5e2c7ef7b20d037dd637817bf176ef5cdb4f120f Mon Sep 17 00:00:00 2001
+From: "po.cheng" <po.cheng@adlinktech.com>
+Date: Thu, 23 Jan 2025 17:07:35 +0800
+Subject: [PATCH 2/3] Add Falcon Mode support for iMX8M 2of3 [PATCH] From
+ b18d1bf9304d0382de414ff2b64ec9190b17aebd Mon Sep 17 00:00:00 2001 From: Elena
+ Popa <elena.popa@nxp.com> Date: Wed, 11 Sep 2024 18:30:38 +0300 Subject:
+ [PATCH] Add Falcon Mode support for iMX8M and iMX9
+
+Signed-off-by: po.cheng <po.cheng@adlinktech.com>
+---
+ board/freescale/imx8mm_evk/spl.c | 14 ++++++++++++++
+ board/freescale/imx8mn_evk/spl.c | 14 ++++++++++++++
+ board/freescale/imx8mp_evk/spl.c | 14 ++++++++++++++
+ include/configs/imx8mm_evk.h     |  2 ++
+ include/configs/imx8mn_evk.h     |  2 ++
+ include/configs/imx8mp_evk.h     |  2 ++
+ 6 files changed, 48 insertions(+)
+
+diff --git a/board/freescale/imx8mm_evk/spl.c b/board/freescale/imx8mm_evk/spl.c
+index c93fbd42ed6c..05a59f501cb8 100644
+--- a/board/freescale/imx8mm_evk/spl.c
++++ b/board/freescale/imx8mm_evk/spl.c
+@@ -32,9 +32,23 @@
+ #include <mmc.h>
+ #include <linux/delay.h>
+ #include <fsl_sec.h>
++#include <serial.h>
+ 
+ DECLARE_GLOBAL_DATA_PTR;
+ 
++#ifdef CONFIG_SPL_OS_BOOT
++int spl_start_uboot(void) {
++	if (IS_ENABLED(CONFIG_SPL_SERIAL) && serial_tstc() && serial_getc()) {
++	/* break into full u boot if any key is pressed */
++		while(serial_tstc()) { /* eat up all the remaining characters */
++			serial_getc();
++		}
++		return 1;
++	}
++	return 0; // start the Kernel
++}
++#endif
++
+ int spl_board_boot_device(enum boot_device boot_dev_spl)
+ {
+ 	switch (boot_dev_spl) {
+diff --git a/board/freescale/imx8mn_evk/spl.c b/board/freescale/imx8mn_evk/spl.c
+index fee5db8cf0fe..83062bec7e63 100644
+--- a/board/freescale/imx8mn_evk/spl.c
++++ b/board/freescale/imx8mn_evk/spl.c
+@@ -33,9 +33,23 @@
+ #include <fsl_esdhc_imx.h>
+ #include <mmc.h>
+ #include <linux/delay.h>
++#include <serial.h>
+ 
+ DECLARE_GLOBAL_DATA_PTR;
+ 
++#ifdef CONFIG_SPL_OS_BOOT
++int spl_start_uboot(void) {
++	if (IS_ENABLED(CONFIG_SPL_SERIAL) && serial_tstc() && serial_getc()) {
++	/* break into full u boot if any key is pressed */
++		while(serial_tstc()) { /* eat up all the remaining characters */
++			serial_getc();
++		}
++		return 1;
++	}
++	return 0; // start the Kernel
++}
++#endif
++
+ int spl_board_boot_device(enum boot_device boot_dev_spl)
+ {
+ #ifdef CONFIG_SPL_BOOTROM_SUPPORT
+diff --git a/board/freescale/imx8mp_evk/spl.c b/board/freescale/imx8mp_evk/spl.c
+index 913e2868b983..aa344e47ce35 100644
+--- a/board/freescale/imx8mp_evk/spl.c
++++ b/board/freescale/imx8mp_evk/spl.c
+@@ -27,9 +27,23 @@
+ #include <fsl_esdhc_imx.h>
+ #include <mmc.h>
+ #include <asm/arch/ddr.h>
++#include <serial.h>
+ 
+ DECLARE_GLOBAL_DATA_PTR;
+ 
++#ifdef CONFIG_SPL_OS_BOOT
++int spl_start_uboot(void) {
++	if (IS_ENABLED(CONFIG_SPL_SERIAL) && serial_tstc() && serial_getc()) {
++	/* break into full u boot if any key is pressed */
++		while(serial_tstc()) { /* eat up all the remaining characters */
++			serial_getc();
++		}
++		return 1;
++	}
++	return 0; // start the Kernel
++}
++#endif
++
+ int spl_board_boot_device(enum boot_device boot_dev_spl)
+ {
+ #ifdef CONFIG_SPL_BOOTROM_SUPPORT
+diff --git a/include/configs/imx8mm_evk.h b/include/configs/imx8mm_evk.h
+index 3d992ffa134e..3d952dd98c92 100644
+--- a/include/configs/imx8mm_evk.h
++++ b/include/configs/imx8mm_evk.h
+@@ -141,11 +141,13 @@
+ 	"mmcroot=" CONFIG_MMCROOT " rootwait rw\0" \
+ 	"mmcautodetect=yes\0" \
+ 	"mmcargs=setenv bootargs ${jh_clk} ${mcore_clk} console=${console} root=${mmcroot}\0 " \
++	"mmcargs_fastboot=setenv bootargs ${jh_clk} ${mcore_clk} console=${console} root=${mmcroot} quiet\0 " \
+ 	"loadbootscript=fatload mmc ${mmcdev}:${mmcpart} ${loadaddr} ${bsp_script};\0" \
+ 	"bootscript=echo Running bootscript from mmc ...; " \
+ 		"source\0" \
+ 	"loadimage=fatload mmc ${mmcdev}:${mmcpart} ${loadaddr} ${image}\0" \
+ 	"loadfdt=fatload mmc ${mmcdev}:${mmcpart} ${fdt_addr_r} ${fdtfile}\0" \
++	"prepare_fdt=run loadfdt;ext2load mmc ${mmcdev}:2 ${loadaddr} /home/root/.falcon/uImage;run mmcargs_fastboot;spl export fdt ${loadaddr} - ${fdt_addr_r};fatwrite mmc ${mmcdev}:${mmcpart} ${fdt_addr_r} " CONFIG_SPL_FS_LOAD_ARGS_NAME " ${fdtargslen}\0" \
+ 	"mmcboot=echo Booting from mmc ...; " \
+ 		"run mmcargs; " \
+ 		"if test ${boot_fit} = yes || test ${boot_fit} = try; then " \
+diff --git a/include/configs/imx8mn_evk.h b/include/configs/imx8mn_evk.h
+index 1bdf68ab83a0..a95746df6e52 100644
+--- a/include/configs/imx8mn_evk.h
++++ b/include/configs/imx8mn_evk.h
+@@ -120,11 +120,13 @@
+ 	"mmcroot=" CONFIG_MMCROOT " rootwait rw\0" \
+ 	"mmcautodetect=yes\0" \
+ 	"mmcargs=setenv bootargs ${jh_clk} ${mcore_clk} console=${console} root=${mmcroot}\0 " \
++	"mmcargs_fastboot=setenv bootargs ${jh_clk} ${mcore_clk} console=${console} root=${mmcroot} quiet\0 " \
+ 	"loadbootscript=fatload mmc ${mmcdev}:${mmcpart} ${loadaddr} ${bsp_script};\0" \
+ 	"bootscript=echo Running bootscript from mmc ...; " \
+ 		"source\0" \
+ 	"loadimage=fatload mmc ${mmcdev}:${mmcpart} ${loadaddr} ${image}\0" \
+ 	"loadfdt=fatload mmc ${mmcdev}:${mmcpart} ${fdt_addr_r} ${fdtfile}\0" \
++	"prepare_fdt=run loadfdt;ext2load mmc ${mmcdev}:2 ${loadaddr} /home/root/.falcon/uImage;run mmcargs_fastboot;spl export fdt ${loadaddr} - ${fdt_addr_r};fatwrite mmc ${mmcdev}:${mmcpart} ${fdt_addr_r} " CONFIG_SPL_FS_LOAD_ARGS_NAME " ${fdtargslen}\0" \
+ 	"mmcboot=echo Booting from mmc ...; " \
+ 		"run mmcargs; " \
+ 		"if test ${boot_fit} = yes || test ${boot_fit} = try; then " \
+diff --git a/include/configs/imx8mp_evk.h b/include/configs/imx8mp_evk.h
+index a26c651dcf5a..78732d674624 100644
+--- a/include/configs/imx8mp_evk.h
++++ b/include/configs/imx8mp_evk.h
+@@ -136,11 +136,13 @@
+ 	"mmcroot=" CONFIG_MMCROOT " rootwait rw\0" \
+ 	"mmcautodetect=yes\0" \
+ 	"mmcargs=setenv bootargs ${jh_clk} ${mcore_clk} console=${console} root=${mmcroot}\0 " \
++	"mmcargs_fastboot=setenv bootargs ${jh_clk} ${mcore_clk} console=${console} root=${mmcroot} quiet\0 " \
+ 	"loadbootscript=fatload mmc ${mmcdev}:${mmcpart} ${loadaddr} ${bsp_script};\0" \
+ 	"bootscript=echo Running bootscript from mmc ...; " \
+ 		"source\0" \
+ 	"loadimage=fatload mmc ${mmcdev}:${mmcpart} ${loadaddr} ${image}\0" \
+ 	"loadfdt=fatload mmc ${mmcdev}:${mmcpart} ${fdt_addr_r} ${fdtfile}\0" \
++	"prepare_fdt=run loadfdt;ext2load mmc ${mmcdev}:2 ${loadaddr} /home/root/.falcon/uImage;run mmcargs_fastboot;spl export fdt ${loadaddr} - ${fdt_addr_r};fatwrite mmc ${mmcdev}:${mmcpart} ${fdt_addr_r} " CONFIG_SPL_FS_LOAD_ARGS_NAME " ${fdtargslen}\0" \
+ 	"mmcboot=echo Booting from mmc ...; " \
+ 		"run mmcargs; " \
+ 		"if test ${boot_fit} = yes || test ${boot_fit} = try; then " \
+-- 
+2.25.1
+
